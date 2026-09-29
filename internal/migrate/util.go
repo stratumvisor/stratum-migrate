@@ -93,16 +93,18 @@ func DiskFilename(bus string, index int) (string, error) {
 	}
 }
 
-func ChooseOutputBus(sourceBus, policy, backendBus string) string {
+// ChooseConversionOutputBus selects the temporary/output bus implied by the
+// conversion backend.  It deliberately does not define the final STRATUM
+// runtime controller; that is resolved after the target engine is known.
+func ChooseConversionOutputBus(sourceBus, policy, backendBus string) string {
 	sourceBus = strings.ToLower(sourceBus)
 	backendBus = normalizeDiskBus(backendBus)
 	switch policy {
 	case "scsi", "virtio":
 		return policy
 	case "preserve":
-		// STRATUM's portable disk contract is VirtIO Block or VirtIO SCSI.
-		// Preserve only controllers that map directly to that contract; foreign
-		// SATA/IDE/LSI-style disks normalize to virtio-scsi.
+		// Preserve only controllers that map directly to the portable runtime
+		// contract. Foreign SATA/IDE/LSI-style disks normalize to SCSI.
 		if sourceBus == "virtio" || sourceBus == "scsi" {
 			return sourceBus
 		}
@@ -112,8 +114,52 @@ func ChooseOutputBus(sourceBus, policy, backendBus string) string {
 		return backendBus
 	}
 	// qemu-img does format conversion only and cannot preserve VMware/AHCI/IDE
-	// hardware. Use the common virtio-scsi contract by default.
+	// hardware. Use the portable SCSI contract by default; the final runtime
+	// implementation is selected later from the target VM engine.
 	return "scsi"
+}
+
+// ChooseRuntimeBus resolves the controller exposed to the migrated guest.
+// Under STRATUMVMM, SCSI means native OpenVMM VMBus SCSI / StorVSC.  The
+// virt-v2v conversion block driver is intentionally not allowed to override
+// the STRATUM default: conversion plumbing and runtime hardware are separate.
+func ChooseRuntimeBus(sourceBus, policy, convertedBus, targetEngine string) string {
+	sourceBus = normalizeDiskBus(sourceBus)
+	convertedBus = normalizeDiskBus(convertedBus)
+	targetEngine = strings.ToLower(strings.TrimSpace(targetEngine))
+
+	switch policy {
+	case "scsi", "virtio":
+		return policy
+	case "preserve":
+		if sourceBus == "virtio" || sourceBus == "scsi" {
+			return sourceBus
+		}
+		return "scsi"
+	}
+
+	if targetEngine == "stratum" {
+		return "scsi"
+	}
+	if convertedBus != "" {
+		return convertedBus
+	}
+	return "scsi"
+}
+
+func RuntimeDiskDevice(targetEngine, bus string) string {
+	targetEngine = strings.ToLower(strings.TrimSpace(targetEngine))
+	bus = normalizeDiskBus(bus)
+	if bus == "virtio" {
+		return "virtio-blk"
+	}
+	if targetEngine == "stratum" && bus == "scsi" {
+		return "vmbus-scsi-storvsc"
+	}
+	if bus == "scsi" {
+		return "virtio-scsi"
+	}
+	return bus
 }
 
 func normalizeDiskBus(bus string) string {
