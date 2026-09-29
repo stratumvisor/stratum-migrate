@@ -74,7 +74,7 @@ func RunQEMUImgBackend(cfg Config, model *OVFModel, imageDir, workdir, qemuImg s
 	}
 	busCounts := map[string]int{}
 	for _, disk := range model.AttachedDisks {
-		bus := ChooseOutputBus(disk.SourceBus, cfg.DiskBus, "")
+		bus := ChooseConversionOutputBus(disk.SourceBus, cfg.DiskBus, "")
 		name, err := DiskFilename(bus, busCounts[bus])
 		if err != nil {
 			return nil, err
