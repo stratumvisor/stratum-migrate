@@ -179,7 +179,7 @@ func RunVirtV2VBackend(cfg Config, model *OVFModel, imageDir, workdir, inputPath
 			sourceHref = model.AttachedDisks[i].SourceHref
 			ovfID = model.AttachedDisks[i].DiskID
 		}
-		bus := ChooseOutputBus(sourceBus, cfg.DiskBus, disk.Bus)
+		bus := ChooseConversionOutputBus(sourceBus, cfg.DiskBus, disk.Bus)
 		name, err := DiskFilename(bus, busCounts[bus])
 		if err != nil {
 			return nil, err
