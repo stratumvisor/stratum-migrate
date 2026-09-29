@@ -24,15 +24,37 @@ type TemplateOptions struct {
 }
 
 func RenderTemplateYAML(o TemplateOptions) string {
+	stratumEngine := strings.EqualFold(strings.TrimSpace(o.QEMUVersion), "stratum")
 	machine := "q35"
 	if o.Arch == "aarch64" || o.Arch == "arm" {
 		machine = "virt"
 	}
-	if (o.Arch == "i386" || o.Arch == "arm") && o.Firmware != "bios" {
-		o.Firmware = "bios"
-	}
 	if o.HardwareUUID == "" {
 		o.HardwareUUID = "auto"
+	}
+	accelerationValue := "auto"
+	accelerationOptions := `  options: { auto: "Auto - use KVM when possible", kvm: "Require KVM", tcg: "Software Emulation" }`
+	diskOptions := `  options: { virtio: "VirtIO Block", scsi: "VirtIO SCSI" }`
+	archOptions := `  options: { x86_64: "x86-64", i386: "x86 32-bit", aarch64: "ARM64", arm: "ARM 32-bit" }`
+	machineOptions := `  options: { q35: q35, pc: pc, virt: virt }`
+	cpuModelValue := "auto"
+	cpuModelOptions := `  options: { auto: "Auto", host: host, Penryn: Penryn, qemu64: qemu64, max: max }`
+	firmwareOptions := `  options: { bios: "Legacy BIOS", uefi: "UEFI", secureboot: "UEFI Secure Boot" }`
+	memoryEncryptionOptions := `  options: { off: "Off", amd-sev: "AMD SEV", amd-sev-es: "AMD SEV-ES", amd-sev-snp: "AMD SEV-SNP", intel-tdx: "Intel TDX" }`
+	if stratumEngine {
+		accelerationValue = "kvm"
+		accelerationOptions = `  options: { kvm: "KVM - required by STRATUM" }`
+		diskOptions = `  options: { virtio: "VirtIO Block", scsi: "VMBus SCSI (StorVSC)" }`
+		archOptions = `  options: { x86_64: "x86-64", aarch64: "ARM64" }`
+		machineOptions = fmt.Sprintf(`  options: { %s: %s }`, YAMLQuote(machine), YAMLQuote(machine))
+		cpuModelValue = "host"
+		cpuModelOptions = `  options: { host: host }`
+		memoryEncryptionOptions = `  options: { off: "Off" }`
+		if o.Arch == "x86_64" {
+			firmwareOptions = `  options: { uefi: "UEFI", secureboot: "UEFI Secure Boot" }`
+		} else {
+			firmwareOptions = `  options: { uefi: "UEFI" }`
+		}
 	}
 	lines := []string{
 		fmt.Sprintf("name: %s", YAMLQuote(o.DisplayName)),
@@ -46,9 +68,9 @@ func RenderTemplateYAML(o TemplateOptions) string {
 		fmt.Sprintf("ram: { type: number, value: %d }", maxInt(128, o.RAMMiB)),
 		fmt.Sprintf("ethernet: { type: number, value: %d }", maxInt(0, o.Ethernet)),
 		"",
-		"# Physical GPU / Slurm scheduler fields",
-		"slurm_gpu_count: { type: number, value: 0, min: 0, max: 8 }",
-		"slurm_gpu_type:",
+		"# Physical GPU execution fields",
+		"gpu_count: { type: number, value: 0, min: 0, max: 8 }",
+		"gpu_type:",
 		"  type: list",
 		`  value: ""`,
 		`  options: { "": "None" }`,
@@ -66,7 +88,7 @@ func RenderTemplateYAML(o TemplateOptions) string {
 		"console:",
 		"  type: list",
 		`  value: "vnc"`,
-		"  options: { telnet: Telnet, vnc: VNC }",
+		"  options: { telnet: Telnet, vnc: STRATUM }",
 		"",
 		"guest_os:",
 		"  type: list",
@@ -80,8 +102,8 @@ func RenderTemplateYAML(o TemplateOptions) string {
 		"",
 		"qemu_acceleration:",
 		"  type: list",
-		`  value: "auto"`,
-		`  options: { auto: "Auto - use KVM when possible", kvm: "Require KVM", tcg: "Emulation - TCG" }`,
+		fmt.Sprintf("  value: %s", YAMLQuote(accelerationValue)),
+		accelerationOptions,
 		"#kvm:",
 		"#  type: checkbox",
 		"#  value: 1",
@@ -94,27 +116,27 @@ func RenderTemplateYAML(o TemplateOptions) string {
 		"disk_interface:",
 		"  type: list",
 		fmt.Sprintf("  value: %s", YAMLQuote(o.DiskBus)),
-		`  options: { virtio: "VirtIO Block", scsi: "VirtIO SCSI" }`,
+		diskOptions,
 		"",
 		"qemu_arch:",
 		"  type: list",
 		fmt.Sprintf("  value: %s", YAMLQuote(o.Arch)),
-		`  options: { x86_64: "x86-64", i386: "x86 32-bit", aarch64: "ARM64", arm: "ARM 32-bit" }`,
+		archOptions,
 		"qemu_machine:",
 		"  type: list",
 		fmt.Sprintf("  value: %s", YAMLQuote(machine)),
-		"  options: { q35: q35, pc: pc, virt: virt }",
+		machineOptions,
 		"qemu_cpu_model:",
 		"  type: list",
-		`  value: "auto"`,
-		"  options: { auto: \"Auto\", host: host, Penryn: Penryn, qemu64: qemu64, max: max }",
+		fmt.Sprintf("  value: %s", YAMLQuote(cpuModelValue)),
+		cpuModelOptions,
 		"qemu_cpu_vmx: { type: checkbox, value: 0 }",
 		"qemu_disable_hyperv_enlightenments: { type: checkbox, value: 0 }",
 		"qemu_hide_hypervisor: { type: checkbox, value: 0 }",
 		"firmware:",
 		"  type: list",
 		fmt.Sprintf("  value: %s", YAMLQuote(o.Firmware)),
-		`  options: { bios: "Legacy BIOS", uefi: "UEFI", secureboot: "UEFI Secure Boot" }`,
+		firmwareOptions,
 	}
 	if o.TPMEnabled {
 		lines = append(lines,
@@ -128,7 +150,7 @@ func RenderTemplateYAML(o TemplateOptions) string {
 		"memory_encryption_mode:",
 		"  type: list",
 		`  value: "off"`,
-		`  options: { off: "Off", amd-sev: "AMD SEV", amd-sev-es: "AMD SEV-ES", amd-sev-snp: "AMD SEV-SNP", intel-tdx: "Intel TDX" }`,
+		memoryEncryptionOptions,
 		fmt.Sprintf("hardware_uuid: %s", YAMLQuote(o.HardwareUUID)),
 		"hardware_serial: auto",
 		"",
@@ -136,9 +158,9 @@ func RenderTemplateYAML(o TemplateOptions) string {
 		"  type: list",
 		fmt.Sprintf("  value: %s", YAMLQuote(o.QEMUVersion)),
 		"  options:",
+		`    "stratum": "STRATUM"`,
 		`    "canvas": "CANVAS"`,
 		`    "canvas3d": "CANVAS 3D VirGL"`,
-		`    "stratum": "STRATUM"`,
 		"",
 	)
 	return strings.Join(lines, "\n")
