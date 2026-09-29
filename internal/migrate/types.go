@@ -185,6 +185,7 @@ type MigrationReport struct {
 	GuestOS                      string           `json:"guestOs"`
 	Architecture                 string           `json:"architecture"`
 	Firmware                     string           `json:"firmware"`
+	TargetEngine                 string           `json:"targetEngine"`
 	NICModel                     string           `json:"nicModel"`
 	TPMTemplateEnabled           bool             `json:"tpmTemplateEnabled"`
 	IdentityPolicy               string           `json:"identityPolicy"`
@@ -195,6 +196,7 @@ type MigrationReport struct {
 	V2VLibvirtXML                string           `json:"virtV2vLibvirtXml,omitempty"`
 	V2VLog                       string           `json:"virtV2vLog,omitempty"`
 	V2VCapabilities              []string         `json:"virtV2vCapabilities,omitempty"`
+	ConversionBlockDriver        string           `json:"conversionBlockDriver,omitempty"`
 	Warnings                     []string         `json:"warnings"`
 	Disks                        []map[string]any `json:"disks"`
 }
