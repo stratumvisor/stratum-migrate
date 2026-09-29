@@ -47,7 +47,7 @@ func realMain(args []string) int {
 	fs.StringVar(&cfg.TPM, "tpm", "auto", "TPM policy: auto, none, or tpm2")
 	fs.StringVar(&cfg.Arch, "arch", "auto", "guest architecture")
 	fs.StringVar(&cfg.Identity, "identity", "preserve", "hardware identity: preserve or regenerate")
-	fs.StringVar(&cfg.QEMUVersion, "qemu-version", "canvas", "STRATUM hypervisor engine: canvas, canvas3d, or stratum")
+	fs.StringVar(&cfg.QEMUVersion, "qemu-version", "auto", "VM engine: auto, canvas, canvas3d, or stratum (auto prefers STRATUM for supported UEFI guests and CANVAS for Legacy BIOS)")
 	fs.StringVar(&cfg.QEMUImg, "qemu-img", "", "path to qemu-img")
 	fs.StringVar(&cfg.QCOW2Options, "qcow2-options", "compat=1.1,lazy_refcounts=on", "qemu-img qcow2 output options")
 	fs.StringVar(&cfg.VirtV2V, "virt-v2v", "", "path to virt-v2v")
@@ -85,6 +85,7 @@ func realMain(args []string) int {
 	fmt.Printf("Template: %s\n", summary.TemplateName)
 	fmt.Printf("VM image: %s\n", summary.ImageName)
 	fmt.Printf("Backend: %s\n", summary.Result.Backend)
+	fmt.Printf("VM engine: %s\n", summary.TargetEngine)
 	fmt.Printf("Hardware: %d vCPU, %d MiB RAM, %d NIC(s)\n", summary.Model.CPU, summary.Model.RAMMiB, summary.Model.Ethernet)
 	fmt.Printf("Firmware: %s; NIC: %s\n", summary.Firmware, summary.NICModel)
 	for _, disk := range summary.Result.Disks {
@@ -96,7 +97,14 @@ func realMain(args []string) int {
 		fmt.Fprintf(os.Stderr, "WARNING: %s\n", warning)
 	}
 	if len(summary.Model.NVRAMFiles) > 0 && !cfg.PreserveVMwareNVRAM {
-		fmt.Fprintln(os.Stderr, "WARNING: VMware .nvram was not included. STRATUM will create a fresh OVMF variable store on first boot.")
+		switch {
+		case summary.TargetEngine == "stratum":
+			fmt.Fprintln(os.Stderr, "WARNING: VMware .nvram was not included. STRATUM will initialize fresh MSVM UEFI state in the VMGS store on first boot.")
+		case summary.Firmware == "uefi" || summary.Firmware == "secureboot":
+			fmt.Fprintln(os.Stderr, "WARNING: VMware .nvram was not included. CANVAS will initialize a fresh native UEFI variable store on first boot.")
+		default:
+			fmt.Fprintln(os.Stderr, "WARNING: VMware .nvram was not included. Source VMware firmware state is not used by the migrated VM.")
+		}
 	}
 	if summary.TPMEnabled && summary.Model.TPMPresent {
 		fmt.Fprintln(os.Stderr, "WARNING: A fresh STRATUM TPM2 identity will be created; VMware vTPM secrets/state were not migrated.")
@@ -130,6 +138,10 @@ Backends:
   virt-v2v   Inspect and modify Windows/Linux guests for KVM, install VirtIO
              support, and emit qcow2 disks before STRATUM packaging.
   qemu-img   Fast disk-format conversion without modifying the guest OS.
+
+VM engine policy:
+  auto       Prefer STRATUM for supported UEFI guests. Legacy BIOS guests
+             automatically use CANVAS. Explicit STRATUM + Legacy BIOS fails.
 
 Examples:
   stratum-migrate vm.ova
