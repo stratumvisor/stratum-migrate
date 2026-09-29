@@ -278,7 +278,7 @@ func ParseOVF(descriptor, vmSelector string, requireDiskFiles bool) (*OVFModel, 
 		}
 	}
 
-	firmware, secureBoot, tpmPresent, config := parseFirmwareAndTPM(selected, len(nvramSeen) > 0)
+	firmware, secureBoot, tpmPresent, config := parseFirmwareAndTPM(selected)
 	guestOS, arch := detectGuestOS(selected)
 	nicModel := pickNICModel(items)
 	macs := collectMACs(items)
@@ -359,7 +359,7 @@ func ParseOVF(descriptor, vmSelector string, requireDiskFiles bool) (*OVFModel, 
 
 	var warnings []string
 	if len(nvramSeen) > 0 {
-		warnings = append(warnings, "VMware NVRAM was detected. It is not OVMF-compatible and will not be used as STRATUM uefi-vars.fd.")
+		warnings = append(warnings, "VMware NVRAM was detected. Its presence does not imply UEFI, and the file will not be used as runtime firmware state by STRATUM.")
 	}
 	if tpmPresent {
 		warnings = append(warnings, "A VMware virtual TPM was detected. VMware vTPM state cannot be converted; the guest may require BitLocker or recovery-key handling.")
@@ -496,7 +496,7 @@ func pickNICModel(items []HardwareItem) string {
 	return best
 }
 
-func parseFirmwareAndTPM(vs *xmlElement, nvramPresent bool) (string, bool, bool, map[string]string) {
+func parseFirmwareAndTPM(vs *xmlElement) (string, bool, bool, map[string]string) {
 	config := map[string]string{}
 	for _, cfg := range vs.descendants("Config") {
 		key := strings.ToLower(strings.TrimSpace(cfg.attrLocal("key")))
@@ -512,7 +512,7 @@ func parseFirmwareAndTPM(vs *xmlElement, nvramPresent bool) (string, bool, bool,
 		}
 	}
 	joined := strings.ToLower(strings.Join(fwValues, " "))
-	if strings.Contains(joined, "efi") || strings.Contains(joined, "uefi") || nvramPresent {
+	if strings.Contains(joined, "efi") || strings.Contains(joined, "uefi") {
 		firmware = "uefi"
 	}
 	secureBoot := false
