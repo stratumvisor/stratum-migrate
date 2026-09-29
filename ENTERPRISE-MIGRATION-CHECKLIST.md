@@ -12,7 +12,7 @@
 - Export BitLocker recovery keys and any other TPM-sealed recovery material.
 - Confirm application encryption keys, certificates, service-account credentials, and license recovery procedures.
 - Record whether the source uses BIOS, UEFI, Secure Boot, or VMware vTPM.
-- Plan for a new STRATUM TPM identity and a fresh OVMF variable store.
+- Plan for a new STRATUM TPM identity. STRATUMVMM UEFI guests receive fresh MSVM/VMGS firmware state; CANVAS UEFI guests receive a fresh native UEFI variable store.
 
 ## 3. Migration host readiness
 
@@ -53,8 +53,9 @@ Review every warning. Do not treat a successful conversion as proof that the gue
 ## 5. Review the migration record
 
 - Confirm the selected backend is `virt-v2v`.
+- Confirm the selected target engine. Under the default policy, supported UEFI guests target STRATUM and Legacy BIOS guests target CANVAS.
 - Confirm every source disk has a corresponding STRATUM qcow2 disk.
-- Confirm expected CPU, RAM, architecture, firmware, NIC model, and disk bus.
+- Confirm expected CPU, RAM, architecture, firmware, NIC model, and runtime disk interface. STRATUM `scsi` means VMBus SCSI / StorVSC.
 - Review `migration-source/virt-v2v/virt-v2v.log` when diagnostics were preserved.
 - Review `migration-source/virt-v2v/converted-domain.xml` for disk order and target device models.
 - Treat preserved diagnostics as potentially sensitive operational data.
